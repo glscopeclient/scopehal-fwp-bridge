@@ -1,0 +1,9 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/scopehal-fwp-bridge/.vs/scopehal-fwp-bridge
+/scopehal-fwp-bridge/Debug
+/scopehal-fwp-bridge/x64/Debug
+/x64/Debug
