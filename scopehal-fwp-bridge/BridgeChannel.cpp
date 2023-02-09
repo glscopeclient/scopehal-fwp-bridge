@@ -27,6 +27,8 @@ BridgeChannel::BridgeChannel(int i)
 		abort();
 	}
 
+	m_data = reinterpret_cast<int16_t*>(m_header + 1);
+
 	//Create mutexes
 	string availName = base + "MutexDataAvailable";
 	string completeName = base + "MutexProcessingComplete";
