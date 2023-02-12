@@ -16,7 +16,7 @@ To update your set of subscriptions, send a single byte to the server. The high 
 
 Each time the scope triggers, the server sends a two part data block to the client consisting of a fixed sized header and variable sized per-channel waveform data.
 
-The header consists of four consecutive CDescHeader structures (as documented in the "Fast Wave Port Function" section of the Teledyne LeCroy Advanced Customization Instruction Manual). If a channel is subscribed, the CDescHeader block will contain the raw waveform headers as provided via FastWavePort. If the channel is inactive, an all-zeroes CDescHeader is sent instead as a placeholder.
+The header consists of four consecutive CDescHeader structures (as documented in the "Fast Wave Port Function" section of the Teledyne LeCroy Advanced Customization Instruction Manual) for channels 1-4 in sequence. If a channel is subscribed, the CDescHeader block will contain the raw waveform headers as provided via FastWavePort. If the channel is inactive, an all-zeroes CDescHeader is sent instead as a placeholder.
 
 After the headers, each channel's data is sent. The data block consists of header.numSamples signed 16-bit integers, and is copied verbatim from the FastWavePort shared memory without any preprocessing.
 
