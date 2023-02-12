@@ -6,6 +6,8 @@ It provides a TCP server on port 1862 which supports one client at a time.
 
 If you are using the "lecroy_fwp" driver in libscopehal to talk to this bridge, all instrument-side configuration is automatic. Simply start the bridge server on the oscilloscope and the driver will configure the FastWavePort blocks as needed.
 
+Maximum supported memory depth using the current FastWavePort backend is 40M points per channel. If we switch to FastMultiWavePort in the future, this limitation will be removed however limited documentation has made this difficult so the initial implementation uses FastWavePort.
+
 ## Client to server protocol
 
 Clients may subscribe to up to four analog channels worth of data. Digital channels and 8-channel scopes are not currently supported.
