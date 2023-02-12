@@ -1,8 +1,11 @@
 #include <ws2tcpip.h>
 #include "bridge.h"
 #include "BridgeChannel.h"
+#include <vector>
 
 bool SendLooped(SOCKET sock, const unsigned char* buf, int count);
+
+using namespace std;
 
 int main(int argc, char* argv[])
 {
@@ -47,6 +50,8 @@ int main(int argc, char* argv[])
 		abort();
 	}
 
+	WaveformHeader emptyChannel = { 0 };
+
 	//Main loop, waiting for connections
 	printf("ready\n");
 	while(true)
@@ -66,43 +71,101 @@ int main(int argc, char* argv[])
 		if(0 != setsockopt((int)client, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag)))
 			return false;
 
+		bool channelsEnabled[4] = { true, true, true, true };
 		while(true)
 		{
-			//TODO: accept control plane commands to turn channels on/off? for now, use all of them all the time
+			//See if a channel enable/disable command came in and process it if so
+			WSAPOLLFD poll;
+			poll.fd = client;
+			poll.events = POLLRDNORM;
+			poll.revents = 0;
+			if(SOCKET_ERROR == WSAPoll(&poll, 1, 0))
+			{
+				printf("socket poll failed\n");
+				break;
+			}
+			if(poll.revents & POLLRDNORM)
+			{
+				unsigned char channels;
+				if(1 != recv(client, (char*)&channels, 1, 0))
+				{
+					printf("socket read failed\n");
+					break;
+				}
 
-			//Wait for all of the channel to have data available
-			WaitForMultipleObjects(4, handles, TRUE, INFINITE);
-			printf("signaled\n");
+				for(int i = 0; i < 4; i++)
+					channelsEnabled[i] = (channels & (1 << i));
+			}
 
-			//TODO: send header indicating how many channels are present
+			//No commands came in,  but socked was closed
+			if(poll.revents & POLLHUP)
+			{
+				printf("socket disconnected\n");
+				break;
+			}
+
+			//Make the list of *enabled* channels
+			vector<HANDLE> activeChannels;
+			for(int i = 0; i < 4; i++)
+			{
+				if(channelsEnabled[i])
+					activeChannels.push_back(handles[i]);
+			}
+			
+			//Wait for all of the enabled channels to have data available
+			if(WAIT_TIMEOUT == WaitForMultipleObjects((DWORD)activeChannels.size(), &activeChannels[0], TRUE, 5))
+				continue;
 
 			//Send headers for each channel
 			bool fail = false;
 			for(int i = 0; i < 4; i++)
 			{
-				if(!SendLooped(client, (uint8_t*)channels[i].GetHeader(), sizeof(WaveformHeader)))
-					fail = true;
+				//Channel enabled, send actual header
+				if(channelsEnabled[i])
+				{
+					if(!SendLooped(client, (uint8_t*)channels[i].GetHeader(), sizeof(WaveformHeader)))
+					{
+						printf("fail 1\n");
+						fail = true;
+					}
+				}
+
+				//Channel disabled, send dummy header indicating 'no data'
+				else
+				{
+					if(!SendLooped(client, (uint8_t*)&emptyChannel, sizeof(WaveformHeader)))
+					{
+						printf("fail 2\n");
+						fail = true;
+					}
+				}
 			}
 
-			//Send data for each channel
+			//Send data for each channel then tell the scope we're finished
 			for(int i = 0; i < 4; i++)
 			{
-				if(!SendLooped(client, (uint8_t*)channels[i].GetData(), channels[i].GetHeader()->numSamples * sizeof(int16_t)))
-					fail = true;
-			}
+				if(channelsEnabled[i])
+				{
+					if(!SendLooped(client, (uint8_t*)channels[i].GetData(), channels[i].GetHeader()->numSamples * sizeof(int16_t)))
+					{
+						printf("fail 3\n");
+						fail = true;
+					}
 
-			//Tell the client we're done
-			for(int i = 0; i < 4; i++)
-				channels[i].SetDoneEvent();
+					//mark output as invalid so the scope doesnt waste time rendering it
+					channels[i].GetHeader()->flags = 1;
+					channels[i].SetDoneEvent();
+				}
+			}
 
 			if(fail)
 			{
 				printf("client disconnected\n");
-				closesocket(client);
 				break;
 			}
 		}
 
+		closesocket(client);
 	}
 }
 
